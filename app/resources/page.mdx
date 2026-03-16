@@ -1,0 +1,76 @@
+
+222
+
+```text filename="text.txt"
+verbatim: 逐字的
+ergonomic：人体工学（Ergonomic/Ergonomics）是一门研究人、工具、环境及系统之间相互作用的交叉学科。
+agnostic：（不可知论者/不可知论的）
+  - 技术术语：在软硬件中，指跨平台、适用不同平台的（例如平台不可知，platform-agnostic）
+    
+Subtleties 指的是==事物中隐约难辨、不易察觉的细微差别、精妙之处或微妙之处==。它涵盖了微妙 (subtlety)、精妙 (refinement)、细致 (detail) 以及不易察觉的差异，常用于形容声调、表情、手势、观点或情况的细微变化。
+
+the course of: “In the course of” 是一个英语常用短语，意思为“在…期间”或“在…的过程中”。
+Annealing: 退火
+```
+
+
+工程优化的索引：
+- 描述：理论上的计算是一种通用方法（表示），但是实际上的工程实现。是更加高效、实际的特殊方法（等效）
+- 1、RoPE的实现
+	- 理论：大的矩阵乘法
+	- 工程：向量计算 再相加
+- 2、MHA的实现：
+	- 理论：多个矩阵分开
+	- 工程：As a stretch goal, try combining the key, query, and value projections into a single weight matrix so you only need a single matrix multiply.
+
+作业的维度跨越巨大：
+- 从数据收集、管理、使用 到 分词器
+- 从理论框架到具体工程实现
+- 从训练到推理
+- 从理论资源估算到模型配置、环境选择
+- 数据加载、中间点保存与管理
+- 从模型评估到 训练统计数据的收集、管理、分析；
+- ===
+- 其它更多维度：剩下的作业
+
+
+
+参考：
+- [Assignment 01: Tokenization & Language Modeling – Learning Note](https://yyzhang2025.github.io/LearningNotes/posts/CS336/Ass01/ass01.html)
+	- 作者：[YYZhang2025/Stanford-CS336: My Solution and Notes for the Stanford CS336: LLM from scratch](https://github.com/YYZhang2025/Stanford-CS336)
+
+
+## 2 Byte-Pair Encoding (BPE) Tokenizer
+
+### 2.2 Unicode Encodings
+
+a）What are some reasons to prefer training our tokenizer on UTF-8 encoded bytes, rather than UTF-16 or UTF-32? It may be helpful to compare the output of these encodings for various input strings.
+- 我的回答：因为UTF-8得编码范围是1~4字节，可以兼容ASCII，更节省空间。而UTF-16至少要2字节，UTF-32直接全部用4字节。
+
+#### 2.2.1 UTF-8 Encoding
+
+🔍 理论公式验证
+
+每层FLOPs近似公式：
+
+##### 2.2.1.1 线性项系数
+
+
+代入您的参数 `d=1600, d_ff=6400`：
+- 线性项系数：`(8×1600² + 6×1600×6400) = 81.92×10⁶`
+- 二次项系数：`4×1600 = 6,400`
+
+当 `s` 从 1024 → 16384：
+- 线性项增长：16×
+- 二次项增长：16² = **256×**
+
+二次项在 `s=16k` 时贡献了MHA计算量的 **~84%**，导致总FLOPs超线性增长。
+
+
+$$
+\begin{align*}
+\text{MHA} &= \underbrace{8sd^2}_{\text{线性投影}} + \underbrace{4s^2d}_{\text{注意力矩阵}} \\
+\text{FFN (SwiGLU)} &= \underbrace{6sdd_{ff}}_{\text{3个线性层}} \\
+\text{Total per layer} &= (8d^2 + 6dd_{ff}) \cdot s + 4d \cdot s^2
+\end{align*}
+$$
